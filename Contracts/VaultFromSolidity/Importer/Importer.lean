@@ -24,16 +24,15 @@ open Lean Meta Elab Command
 
 namespace SolidityImporter
 
-private def solcVersionOutput :=
-  if System.Platform.isOSX then
-    "solc, the solidity compiler commandline interface\nVersion: 0.8.33+commit.64118f21.Darwin.appleclang"
-  else
-    "solc, the solidity compiler commandline interface\nVersion: 0.8.33+commit.64118f21.Linux.g++"
-private def solcSha256 :=
-  if System.Platform.isOSX then
-    "8324280591ce398d7e2722846bc10ecf1779b13a328ef97b687c92cd9c70801a"
-  else
-    "1274e5c4621ae478090c5a1f48466fd3c5f658ed9e14b15a0b213dc806215468"
+/-- Release identity used in `sourceDigest`. Platform banners are not part of it. -/
+private def solcVersionPin := "0.8.33+commit.64118f21"
+/-- Official SHA-256 digests from binaries.soliditylang.org `<platform>/list.json`. -/
+private def officialSolcSha256s : Array String := #[
+  "1274e5c4621ae478090c5a1f48466fd3c5f658ed9e14b15a0b213dc806215468",
+  "8324280591ce398d7e2722846bc10ecf1779b13a328ef97b687c92cd9c70801a"]
+private def acceptedSolcVersionOutputs : Array String := #[
+  s!"solc, the solidity compiler commandline interface\nVersion: {solcVersionPin}.Linux.g++",
+  s!"solc, the solidity compiler commandline interface\nVersion: {solcVersionPin}.Darwin.appleclang"]
 private def registeredSource := "Contracts/VaultFromSolidity/Vault.sol"
 
 private def field (j : Json) (key : String) : MetaM Json :=
@@ -110,7 +109,7 @@ private def verifyCompiler (compiler : System.FilePath) : MetaM Unit := do
       IO.Process.output { cmd := "/usr/bin/shasum", args := #["-a", "256", compiler.toString] }
     else
       IO.Process.output { cmd := "/usr/bin/sha256sum", args := #[compiler.toString] }
-  unless output.exitCode == 0 && (output.stdout.take 64).toString == solcSha256 do
+  unless output.exitCode == 0 && officialSolcSha256s.contains (output.stdout.take 64).toString do
     throwError "compiler checksum mismatch"
 
 private structure SourceContext where
@@ -377,7 +376,7 @@ private def typeString (j : Json) : MetaM String :=
 
 set_option maxRecDepth 2048 in
 private def parseCompilerOutput (sourcePath : System.FilePath) (logicalPath : String)
-    (raw : ByteArray) (outputText version importerText : String) : MetaM Frontend := do
+    (raw : ByteArray) (outputText importerText : String) : MetaM Frontend := do
   let output ← match Json.parse outputText with
     | .ok j => pure j
     | .error e => throwError "invalid solc standard JSON: {e}"
@@ -516,7 +515,7 @@ private def parseCompilerOutput (sourcePath : System.FilePath) (logicalPath : St
   needAt ctx contract (usedErrorIds.length == errorIds.length &&
     usedErrorIds.all fun id => errorIds.contains id) "custom error reference mismatch"
   let sourceText := String.fromUTF8? raw |>.getD ""
-  let digest := sha256Hex (sourceText ++ outputText ++ importerText ++ solcSha256 ++ version).toUTF8
+  let digest := sha256Hex (sourceText ++ outputText ++ importerText ++ solcVersionPin).toUTF8
   pure <| Frontend.mk ctx ast fields.reverse errors functions.reverse digest
 
 private def uint := mkConst ``Verity.Core.Uint256
@@ -963,7 +962,8 @@ private def compileFrontend (root source : System.FilePath) : MetaM Frontend := 
   let compiler := canonicalRoot / ".lake/solidity-import/solc"
   verifyCompiler compiler
   let versionOut ← IO.Process.output { cmd := compiler.toString, args := #["--version"] }
-  unless versionOut.exitCode == 0 && versionOut.stdout.trimAscii.toString == solcVersionOutput do
+  unless versionOut.exitCode == 0 &&
+      acceptedSolcVersionOutputs.contains versionOut.stdout.trimAscii.toString do
     throwError "compiler version mismatch"
   verifyCompiler compiler
   let sourceBytes ← IO.FS.readBinFile canonicalSource
@@ -989,7 +989,7 @@ private def compileFrontend (root source : System.FilePath) : MetaM Frontend := 
   let importerText ← IO.FS.readFile (importerDir / "Importer.lean")
   let syntaxText ← IO.FS.readFile (importerDir / "Syntax.lean")
   let semanticsText ← IO.FS.readFile (importerDir / "Semantics.lean")
-  parseCompilerOutput canonicalSource registeredSource sourceBytes output.stdout versionOut.stdout
+  parseCompilerOutput canonicalSource registeredSource sourceBytes output.stdout
     (importerText ++ syntaxText ++ semanticsText)
 
 syntax (name := solidityContract) "solidity_contract " ident " from " str : command

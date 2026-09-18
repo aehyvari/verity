@@ -69,8 +69,13 @@ def main() -> None:
     check(not python_frontend.exists(), "no Python importer/frontend exists")
     check("--standard-json" in importer_text and "--no-import-callback" in importer_text,
           "Lean importer invokes pinned solc standard JSON with import callback disabled")
-    check("solcSha256" in importer_text and "compiler checksum mismatch" in importer_text,
-          "Lean importer enforces compiler checksum and version pin")
+    check("officialSolcSha256s" in importer_text and "compiler checksum mismatch" in importer_text,
+          "Lean importer enforces official compiler checksum allowlist and version pin")
+    check("0.8.33+commit.64118f21" in importer_text and "solcVersionPin" in importer_text,
+          "Lean importer pins the official solc release identity")
+    check(SOLC_PIN in importer_text and
+          "1274e5c4621ae478090c5a1f48466fd3c5f658ed9e14b15a0b213dc806215468" in importer_text,
+          "Lean importer allowlists official linux-amd64 and macosx-amd64 checksums")
     check('cmd := "/usr/bin/sha256sum"' in importer_text and 'cmd := "sha256sum"' not in importer_text,
           "Linux compiler checksum utility uses a fixed path, not PATH lookup")
     check('cmd := "/usr/bin/shasum"' in importer_text and 'cmd := "shasum"' not in importer_text,
