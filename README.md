@@ -61,10 +61,12 @@ registers a deterministic entry-point relation `step`. `Proofs/ExecutionProof.le
 proves each successful call meets its spec and that `solvent` is preserved by
 `step` (`solvent_invariant`).
 
-With the Lean/package prerequisites installed, put the official Linux-amd64 solc
-0.8.33 binary at `.lake/solidity-import/solc` and make it executable. Its accepted
-SHA-256 digest is
-`1274e5c4621ae478090c5a1f48466fd3c5f658ed9e14b15a0b213dc806215468`, then run:
+With the Lean/package prerequisites installed, put the official solc 0.8.33
+binary for your OS at `.lake/solidity-import/solc` and make it executable
+(`make setup-solc-importer` does this). Linux CI uses linux-amd64
+(`1274e5c4621ae478090c5a1f48466fd3c5f658ed9e14b15a0b213dc806215468`); macOS
+uses the official macosx-amd64 build
+(`8324280591ce398d7e2722846bc10ecf1779b13a328ef97b687c92cd9c70801a`). Then run:
 
 ```sh
 lake build VaultFromSolidity

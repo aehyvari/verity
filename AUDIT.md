@@ -28,6 +28,11 @@ lean_lint rule (in `make check`) rejects every raw `ContractState` accessor
 `ContractState` mentions, positional projections, and `knownAddresses` in
 opted-in spec files. The digest scope is documented in `TRUST_ASSUMPTIONS.md`; it is not a transitive build identity.
 
+The importer accepts the official 0.8.33 linux-amd64 and macosx-amd64
+builds; checksum verification uses `/usr/bin/sha256sum` on Linux and
+`/usr/bin/shasum` on macOS. Linux CI still installs and runs the linux-amd64
+artifact.
+
 Evidence command:
 `python3 Contracts/VaultFromSolidity/Importer/scripts/solidity_importer_test.py`
 (after `lake build VaultFromSolidity` and installation of the pinned compiler).

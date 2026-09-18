@@ -11,8 +11,13 @@ meaning. Kernel checking establishes well-typed definitions and theorems about
 their execution, not a Solidity-to-Verity equivalence theorem. `sourceDigest`
 is provenance, not proof of correspondence. It hashes the compiler
 input/output, Lean importer implementation, and verified solc checksum/version.
-The Linux host's fixed `/usr/bin/sha256sum` is trusted for compiler-pin checks;
-the digest is checked before version inspection, immediately before compilation,
+The host's fixed checksum utility is trusted for compiler-pin checks:
+`/usr/bin/sha256sum` on Linux and `/usr/bin/shasum` on macOS. Accepted
+compilers are the official Solidity 0.8.33+commit.64118f21 builds for
+linux-amd64 and macosx-amd64 (the latter is a universal Mach-O and runs on
+Intel and Apple Silicon). The Linux build remains the CI-canonical artifact;
+`sourceDigest` includes the verified checksum of the binary that actually ran.
+The digest is checked before version inspection, immediately before compilation,
 and again after compilation, so `PATH` substitution and persistent compiler
 replacement fail closed. As with all local builds, a concurrently malicious
 process with the builder's own filesystem privileges is outside the threat model.

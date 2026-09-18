@@ -19,6 +19,7 @@ VERIFY_YML = ROOT / ".github" / "workflows" / "verify.yml"
 SETUP_SOLC_ACTION = ROOT / ".github" / "actions" / "setup-solc" / "action.yml"
 FOUNDRY_TOML = ROOT / "foundry.toml"
 TRUST_ASSUMPTIONS = ROOT / "TRUST_ASSUMPTIONS.md"
+MACOS_SOLC_SHA256 = "8324280591ce398d7e2722846bc10ecf1779b13a328ef97b687c92cd9c70801a"
 
 SOLC_VERSION_RE = re.compile(r'^\s*SOLC_VERSION:\s*"([^"]+)"\s*$', re.MULTILINE)
 SOLC_URL_RE = re.compile(r'^\s*SOLC_URL:\s*"([^"]+)"\s*$', re.MULTILINE)
@@ -72,7 +73,7 @@ def main() -> int:
     try:
         solc_version = _extract_canonical(SOLC_VERSION_RE, verify_text, "SOLC_VERSION", errors)
         solc_url = _extract_canonical(SOLC_URL_RE, verify_text, "SOLC_URL", errors)
-        _extract_canonical(SOLC_SHA256_RE, verify_text, "SOLC_SHA256", errors)
+        linux_sha256 = _extract_canonical(SOLC_SHA256_RE, verify_text, "SOLC_SHA256", errors)
     except ValueError as err:
         print(f"solc pin check failed: {err}", file=sys.stderr)
         return 1
@@ -115,6 +116,25 @@ def main() -> int:
         errors.append(".github/actions/setup-solc/action.yml: solc cache/install path must be workspace-local")
     if re.search(r"\bsudo\b", action_text):
         errors.append(".github/actions/setup-solc/action.yml: solc install step must not require sudo")
+
+    importer = ROOT / "Contracts" / "VaultFromSolidity" / "Importer" / "Importer.lean"
+    if importer.exists():
+        importer_text = _read(importer)
+        if linux_sha256 not in importer_text:
+            errors.append(
+                "Contracts/VaultFromSolidity/Importer/Importer.lean: "
+                "must pin verify.yml SOLC_SHA256 for linux-amd64"
+            )
+        if MACOS_SOLC_SHA256 not in importer_text:
+            errors.append(
+                "Contracts/VaultFromSolidity/Importer/Importer.lean: "
+                "must pin the official macosx-amd64 solc SHA-256"
+            )
+        if "/usr/bin/shasum" not in importer_text:
+            errors.append(
+                "Contracts/VaultFromSolidity/Importer/Importer.lean: "
+                "macOS checksum path must be /usr/bin/shasum"
+            )
 
     if errors:
         print("solc pin check failed:", file=sys.stderr)

@@ -3,7 +3,7 @@
 # Prerequisites: curl, git, python3, bash
 # Run `make setup` to install all tooling, then `make verify` to check all proofs.
 
-.PHONY: help setup setup-elan setup-solc setup-foundry \
+.PHONY: help setup setup-elan setup-solc setup-solc-importer setup-foundry \
         verify verify-packages verify-targeted profile-lean test test-foundry test-python axiom-report \
         compile generate-yul check checks test-evmyullean-fork \
         refresh-status all clean
@@ -23,7 +23,7 @@ help: ## Show this help
 # Setup
 # ---------------------------------------------------------------------------
 
-setup: setup-elan setup-solc setup-foundry ## Install all tooling (elan, solc, foundry)
+setup: setup-elan setup-solc setup-solc-importer setup-foundry ## Install all tooling (elan, solc, foundry)
 	@echo ""
 	@echo "Setup complete. Run 'make verify' to check all proofs."
 
@@ -48,6 +48,23 @@ setup-solc: ## Install solc (SHA256-verified)
 		sudo chmod +x /usr/local/bin/solc; \
 		echo "solc $(SOLC_VERSION) installed"; \
 	fi
+
+setup-solc-importer: ## Install pinned solc for the Lean Solidity importer
+	@dest=".lake/solidity-import/solc"; \
+	mkdir -p .lake/solidity-import; \
+	if [ "$$(uname -s)" = Darwin ]; then \
+		url="https://binaries.soliditylang.org/macosx-amd64/solc-macosx-amd64-v$(SOLC_VERSION)+commit.64118f21"; \
+		sha="8324280591ce398d7e2722846bc10ecf1779b13a328ef97b687c92cd9c70801a"; \
+		curl -sSfL "$$url" -o "$$dest"; \
+		echo "$$sha  $$dest" | /usr/bin/shasum -a 256 -c -; \
+	else \
+		url="$(SOLC_URL)"; \
+		sha="$(SOLC_SHA256)"; \
+		curl -sSfL "$$url" -o "$$dest"; \
+		echo "$$sha  $$dest" | sha256sum -c -; \
+	fi; \
+	chmod +x "$$dest"; \
+	echo "installed pinned solc $(SOLC_VERSION) at $$dest"
 
 setup-foundry: ## Install Foundry (forge, cast, anvil)
 	@if command -v forge >/dev/null 2>&1; then \

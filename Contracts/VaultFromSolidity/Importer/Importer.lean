@@ -25,8 +25,15 @@ open Lean Meta Elab Command
 namespace SolidityImporter
 
 private def solcVersionOutput :=
-  "solc, the solidity compiler commandline interface\nVersion: 0.8.33+commit.64118f21.Linux.g++"
-private def solcSha256 := "1274e5c4621ae478090c5a1f48466fd3c5f658ed9e14b15a0b213dc806215468"
+  if System.Platform.isOSX then
+    "solc, the solidity compiler commandline interface\nVersion: 0.8.33+commit.64118f21.Darwin.appleclang"
+  else
+    "solc, the solidity compiler commandline interface\nVersion: 0.8.33+commit.64118f21.Linux.g++"
+private def solcSha256 :=
+  if System.Platform.isOSX then
+    "8324280591ce398d7e2722846bc10ecf1779b13a328ef97b687c92cd9c70801a"
+  else
+    "1274e5c4621ae478090c5a1f48466fd3c5f658ed9e14b15a0b213dc806215468"
 private def registeredSource := "Contracts/VaultFromSolidity/Vault.sol"
 
 private def field (j : Json) (key : String) : MetaM Json :=
@@ -98,7 +105,11 @@ private def sha256Hex (bytes : ByteArray) : String :=
     acc.push (hexDigit (byte.toNat / 16)) |>.push (hexDigit (byte.toNat % 16))
 
 private def verifyCompiler (compiler : System.FilePath) : MetaM Unit := do
-  let output ← IO.Process.output { cmd := "/usr/bin/sha256sum", args := #[compiler.toString] }
+  let output ←
+    if System.Platform.isOSX then
+      IO.Process.output { cmd := "/usr/bin/shasum", args := #["-a", "256", compiler.toString] }
+    else
+      IO.Process.output { cmd := "/usr/bin/sha256sum", args := #[compiler.toString] }
   unless output.exitCode == 0 && (output.stdout.take 64).toString == solcSha256 do
     throwError "compiler checksum mismatch"
 
