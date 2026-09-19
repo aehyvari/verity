@@ -9,10 +9,20 @@ pinned solc's typed AST/storage layout and the Lean translation in
 `Contracts/VaultFromSolidity/Importer/Importer.lean` to preserve Solidity
 meaning. Kernel checking establishes well-typed definitions and theorems about
 their execution, not a Solidity-to-Verity equivalence theorem. `sourceDigest`
-is provenance, not proof of correspondence. It hashes the compiler
-input/output, Lean importer implementation, and verified solc checksum/version.
-The Linux host's fixed `/usr/bin/sha256sum` is trusted for compiler-pin checks;
-the digest is checked before version inspection, immediately before compilation,
+is provenance, not proof of correspondence. It hashes the compiler input,
+standard-json output, Lean importer implementation, and the release identity
+`0.8.33+commit.64118f21` (not the host binary hash or Darwin/Linux banner), so
+Linux and macOS share one translation identity when they produce the same AST.
+The host's fixed checksum utility is trusted for compiler-pin checks:
+`/usr/bin/sha256sum` on Linux and `/usr/bin/shasum` on macOS. The on-disk
+compiler must match a committed allowlist of official
+`binaries.soliditylang.org` SHA-256 digests for linux-amd64 and macosx-amd64
+(the latter is a universal Mach-O). `make setup-solc-importer` fetches the
+platform `list.json`, requires the published digest to equal that pin, then
+downloads the listed build. `make check-solc-published` repeats the live
+list.json check without installing. Lake elaboration never fetches. Linux CI
+still installs and runs the linux-amd64 artifact.
+The digest is checked before version inspection, immediately before compilation,
 and again after compilation, so `PATH` substitution and persistent compiler
 replacement fail closed. As with all local builds, a concurrently malicious
 process with the builder's own filesystem privileges is outside the threat model.
@@ -39,18 +49,31 @@ use of that elaborator; kernel-checked, rolled back on failure), then
 registers `view : ContractState → Storage` built from the imported
 `<var>Slot` handles, tags slot handles, getters, functions, and `view` into
 the `solidity_import` simp set, and registers a deterministic entry-point
-relation `step` (functions in source order, then public getters in field
-order). `Storage`, `view`, and `step` are reserved Solidity names. The
+relation `step` (the target's public/external functions in source order, then
+each base in linearization order, then public getters in field order).
+`Storage`, `view`, and `step` are reserved Solidity names. Opaque fields are
+listed in `opaqueFields`. The importer source manifest is `registeredSources`. The
 frontend emits no generated Lean source and keeps
 no serialized AST/model cache; the parsed term is a kernel-checked Lean value,
 never serialized. `Semantics.lean` tags its definitions into the
 `solidity_import` simp set, so `solidity_simp` unfolds `Fn.meaning` down to the
 Verity primitives exactly as it did before the split.
 
-The accepted fragment covers the existing Vault: full-width scalars,
-address-to-uint256 mappings and public getters, straight-line reads/writes,
-locals, checked addition/subtraction, and comparison/custom-error guards.
-Unknown executable constructs are rejected; this is not general Solidity support.
+The accepted fragment covers the existing Vault plus the S1 inheritance slice:
+full-width `uint256` scalars, `address` scalars, address-to-uint256 mappings and
+public getters, straight-line reads/writes, locals, checked addition/subtraction,
+comparison/custom-error guards, same-file `is` bases with solc's C3
+linearization (including diamonds), virtual dispatch and `super` specialized at
+import time from the target's `linearizedBaseContracts` (matching 0.8.x runtime;
+the AST `referencedDeclaration` on `super` follows the defining contract and is
+not the dispatch key on diamonds), internal function calls (`Expr.call` is
+`view`/`pure` only; effectful internals are `Stmt.callStmt`, because legacy
+codegen evaluates those calls before the other operand / `+=` old-read),
+abstract bases with body-less `virtual`s,
+and opaque storage fields (slot reserved, not in `Storage`; a body that reads or
+writes one is rejected). Unknown executable constructs are rejected; this is not
+general Solidity support. Multi-file units, modifiers, packed fields, and
+external calls remain out of the fragment.
 Arguments/context are already typed and decoded. `Contract.run` rolls back
 failed executions; errors are model strings, not verified ABI revert bytes.
 The storage model uses logical keys, not a proof of physical keccak layout.
